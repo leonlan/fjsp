@@ -2,14 +2,13 @@
 # Scratch: OR-Tools doesn't work well. CP Optimizer does, but it's probably
 # just using CPLEX under the hood.
 # TODO: write a new OR-Tools model that uses alternative constraints.
-from dataclasses import dataclass
-from pathlib import Path
 from collections import defaultdict
-from typing import Union
-from pyjobshop import Model
-from pyjobshop.plot import plot_machine_gantt, plot_task_gantt
+from dataclasses import dataclass
 from itertools import pairwise
-import matplotlib.pyplot as plt
+from pathlib import Path
+from typing import Union
+
+from pyjobshop import Model
 
 
 @dataclass

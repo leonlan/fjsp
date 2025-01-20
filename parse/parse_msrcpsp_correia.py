@@ -1,15 +1,11 @@
-# 11 Jan 2025
-# Scratch: OR-Tools doesn't work well. CP Optimizer does, but it's probably
-# just using CPLEX under the hood.
-# TODO: write a new OR-Tools model that uses alternative constraints.
+# Specialized OR-Tools model for the MS-RCPSP.
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Union
-from typing_extensions import IntVar
 
-from ortools.sat.python.cp_model import CpModel, CpSolver
-from ortools.sat.python.cp_model import IntVar, IntervalVar
+from ortools.sat.python.cp_model import CpModel, CpSolver, IntervalVar, IntVar
 from parse_msrcpsp import parse_msrcpsp
+from typing_extensions import IntVar
 
 
 @dataclass
@@ -176,24 +172,22 @@ def new_model(instance):
 
 
 if __name__ == "__main__":
-    # loc = "tmp/MSLIB/Correia(2012)/Instances"
-    # path = Path(loc)
-
-    # for idx in [1]:
+    # for idx in range(1, 200):
+    #     loc = "tmp/MSLIB/Correia(2012)/Instances"
+    #     path = Path(loc)
     #     instance_loc = path / f"Correia_Set_{idx}.msrcp"
-    #     instance = parse_msrcpsp(instance_loc)
+    #     instance = parse_msrcpsp_correia(instance_loc)
 
-    loc = "tmp/MSLIB/MSLIB1/Instances1"
-    path = Path(loc)
-
-    for idx in range(1, 100):
+    for idx in range(1, 2001):
+        loc = "tmp/MSLIB/MSLIB1/Instances1"
+        path = Path(loc)
         instance_loc = path / f"MSLIB_Set1_{idx}.msrcp"
         instance = parse_msrcpsp(instance_loc)
 
         model = new_model(instance)
 
         display = False
-        time_limit = 10
+        time_limit = 30
         num_workers = 8
         params = {
             "max_time_in_seconds": time_limit,
@@ -208,5 +202,22 @@ if __name__ == "__main__":
         status_code = cp_solver.solve(model)
         status = cp_solver.status_name(status_code)
         objective_value = cp_solver.objective_value
+        objective_bound = cp_solver.best_objective_bound
 
-        print(instance_loc.stem, objective_value, status)
+        with open("skills.txt", "a") as fh:
+            print(
+                instance_loc.stem,
+                objective_value,
+                objective_bound,
+                status,
+                cp_solver.wall_time,
+                file=fh,
+            )
+
+        print(
+            instance_loc.stem,
+            objective_value,
+            objective_bound,
+            status,
+            round(cp_solver.wall_time, 2),
+        )
