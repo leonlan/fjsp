@@ -58,7 +58,13 @@ class Solver:
                 start = cp_solver.value(var.start)
                 end = cp_solver.value(var.end)
                 mode = self._data.modes[idx]
-                tasks[mode.task] = TaskData(idx, mode.resources, start, end)
+                tasks[mode.task] = TaskData(
+                    idx, mode.resources, start, end, present=True
+                )
+
+        for idx in range(self._data.num_tasks):
+            if idx not in tasks:
+                tasks[idx] = TaskData(idx, [], 0, 0, present=False)
 
         return Solution([tasks[idx] for idx in range(self._data.num_tasks)])
 

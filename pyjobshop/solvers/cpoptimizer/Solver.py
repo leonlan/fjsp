@@ -58,7 +58,13 @@ class Solver:
                 resources = self._data.modes[mode].resources
                 start = var.start
                 end = var.end
-                tasks[task] = TaskData(mode, resources, start, end)
+                tasks[task] = TaskData(
+                    mode, resources, start, end, present=True
+                )
+
+        for idx in range(self._data.num_tasks):
+            if idx not in tasks:
+                tasks[idx] = TaskData(idx, [], 0, 0, present=False)
 
         return Solution([tasks[idx] for idx in range(self._data.num_tasks)])
 

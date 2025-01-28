@@ -29,7 +29,19 @@ class Objective:
         Returns an expression representing the makespan of the model.
         """
         makespan = self._model.new_int_var(0, MAX_VALUE, "makespan")
-        completion_times = [var.end for var in self._task_vars]
+        completion_times = []
+
+        for task, var in zip(self._data.tasks, self._task_vars):
+            if task.optional:
+                # When the task is absent, it should not restrict the makespan.
+                task_end = self._model.new_int_var(0, MAX_VALUE, "")
+                expr = task_end == var.end
+                self._model.add(expr).only_enforce_if(var.present)
+            else:
+                task_end = var.end
+
+            completion_times.append(task_end)
+
         self._model.add_max_equality(makespan, completion_times)
         return makespan
 

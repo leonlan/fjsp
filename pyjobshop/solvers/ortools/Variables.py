@@ -52,12 +52,15 @@ class TaskVar:
         The duration variable of the interval.
     end
         The end time variable of the interval.
+    present
+        The boolean variable indicating whether the interval is present.
     """
 
     interval: IntervalVar
     start: IntVar
     duration: IntVar
     end: IntVar
+    present: BoolVarT
 
 
 @dataclass
@@ -242,10 +245,15 @@ class Variables:
                 ub=min(task.latest_end, MAX_VALUE),
                 name=f"{name}_end",
             )
-            interval = model.new_interval_var(
-                start, duration, end, f"interval_{task}"
+            present = (
+                model.new_bool_var(f"{name}_present")
+                if task.optional
+                else model.new_constant(True)
             )
-            variables.append(TaskVar(interval, start, duration, end))
+            interval = model.new_optional_interval_var(
+                start, duration, end, present, f"interval_{task}"
+            )
+            variables.append(TaskVar(interval, start, duration, end, present))
 
         return variables
 
@@ -338,6 +346,11 @@ class Variables:
             model.add_hint(task_var.start, sol_task.start)
             model.add_hint(task_var.duration, sol_task.end - sol_task.start)
             model.add_hint(task_var.end, sol_task.end)
+
+            if data.tasks[idx].optional:
+                # OR-Tools complains about adding presence hints to interval
+                # variables that are always present (i.e., non-optional tasks).
+                model.add_hint(task_var.present, sol_task.present)
 
         for idx in range(len(data.modes)):
             var = mode_vars[idx]

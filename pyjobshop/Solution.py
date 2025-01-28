@@ -16,12 +16,15 @@ class TaskData:
         The start time.
     end
         The end time.
+    present
+        Whether the task is present in the solution.
     """
 
     mode: int
     resources: list[int]
     start: int
     end: int
+    present: bool = True
 
 
 class Solution:

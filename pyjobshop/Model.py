@@ -8,6 +8,7 @@ from pyjobshop.ProblemData import (
     EndBeforeEnd,
     EndBeforeStart,
     IdenticalResources,
+    IfThen,
     Job,
     Machine,
     Mode,
@@ -125,6 +126,7 @@ class Model:
                 earliest_end=task.earliest_end,
                 latest_end=task.latest_end,
                 fixed_duration=task.fixed_duration,
+                optional=task.optional,
                 name=task.name,
             )
 
@@ -155,6 +157,9 @@ class Model:
 
         for idx1, idx2 in data.constraints.different_resources:
             model.add_different_resources(tasks[idx1], tasks[idx2])
+
+        for idx1, idcs2 in data.constraints.if_then:
+            model.add_if_then(tasks[idx1], [tasks[idx2] for idx2 in idcs2])
 
         for idx1, idx2, res_idx in data.constraints.consecutive:
             model.add_consecutive(
@@ -255,6 +260,7 @@ class Model:
         earliest_end: int = 0,
         latest_end: int = MAX_VALUE,
         fixed_duration: bool = True,
+        optional: bool = False,
         name: str = "",
     ) -> Task:
         """
@@ -268,6 +274,7 @@ class Model:
             earliest_end,
             latest_end,
             fixed_duration,
+            optional,
             name,
         )
 
@@ -393,6 +400,21 @@ class Model:
         machine_idx = self._id2resource[id(machine)]
         constraint = Consecutive(idx1, idx2, machine_idx)
         self._constraints.consecutive.append(constraint)
+
+        return constraint
+
+    def add_if_then(
+        self, pred: Task, succs: Union[Task, list[Task]]
+    ) -> IfThen:
+        """
+        Adds a constraint that if the predecessor task is present, then at
+        least one of the successor tasks must be present.
+        """
+        idx1 = self._id2task[id(pred)]
+        succs = [succs] if isinstance(succs, Task) else succs
+        idcs2 = [self._id2task[id(succ)] for succ in succs]
+        constraint = IfThen(idx1, idcs2)
+        self._constraints.if_then.append(constraint)
 
         return constraint
 

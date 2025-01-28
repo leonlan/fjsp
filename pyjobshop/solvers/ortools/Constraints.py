@@ -4,6 +4,7 @@ import numpy as np
 from ortools.sat.python.cp_model import CpModel, LinearExpr
 
 import pyjobshop.solvers.utils as utils
+from pyjobshop.constants import MAX_VALUE
 from pyjobshop.ProblemData import (
     Machine,
     NonRenewable,
@@ -36,38 +37,61 @@ class Constraints:
 
         for idx, job in enumerate(data.jobs):
             job_var = self._job_vars[idx]
-            task_starts = [self._task_vars[task].start for task in job.tasks]
-            task_ends = [self._task_vars[task].end for task in job.tasks]
+            task_starts = []
+            task_ends = []
+
+            for task in job.tasks:
+                task_var = self._task_vars[task]
+
+                if data.tasks[task].optional:
+                    # When tasks are absent, they should not restrict the job's
+                    # start and end times.
+                    task_start = model.new_int_var(0, MAX_VALUE, "")
+                    task_end = model.new_int_var(0, MAX_VALUE, "")
+
+                    expr = task_start == task_var.start
+                    model.add(expr).only_enforce_if(task_var.present)
+
+                    expr = task_end == task_var.end
+                    model.add(expr).only_enforce_if(task_var.present)
+                else:
+                    task_start = task_var.start
+                    task_end = task_var.end
+
+                task_starts.append(task_start)
+                task_ends.append(task_end)
 
             model.add_min_equality(job_var.start, task_starts)
             model.add_max_equality(job_var.end, task_ends)
 
     def _select_one_mode(self):
         """
-        Selects one mode for each task, ensuring that each task performs
-        exactly one mode.
+        Selects one mode for each task if and only if the task is present,
+        and synchronizes the selected mode variable with the task variable.
         """
         model, data = self._model, self._data
         task2modes = utils.task2modes(data)
 
         for task in range(data.num_tasks):
-            presences = []
-            main = self._task_vars[task]
+            task_var = self._task_vars[task]
+
+            # Select one mode if and only if task is present.
+            presences = [self._mode_vars[m].present for m in task2modes[task]]
+            model.add(sum(presences) == task_var.present)
 
             for mode in task2modes[task]:
-                opt = self._mode_vars[mode]
-                present = opt.present
-                presences.append(present)
+                # Synchronize task var with mode var if both are present.
+                mode_var = self._mode_vars[mode]
+                both_present = [task_var.present, mode_var.present]
 
-                # Sync each optional interval variable with the main variable.
-                model.add(main.start == opt.start).only_enforce_if(present)
-                model.add(main.duration == opt.duration).only_enforce_if(
-                    present
-                )
-                model.add(main.end == opt.end).only_enforce_if(present)
+                sync_start = task_var.start == mode_var.start
+                model.add(sync_start).only_enforce_if(both_present)
 
-            # Select exactly one optional interval variable for each task.
-            model.add_exactly_one(presences)
+                sync_duration = task_var.duration == mode_var.duration
+                model.add(sync_duration).only_enforce_if(both_present)
+
+                sync_end = task_var.end == mode_var.end
+                model.add(sync_end).only_enforce_if(both_present)
 
     def _machines_no_overlap(self):
         """
@@ -123,24 +147,32 @@ class Constraints:
         model, data = self._model, self._data
 
         for idx1, idx2, delay in data.constraints.start_before_start:
-            expr1 = self._task_vars[idx1].start + delay
-            expr2 = self._task_vars[idx2].start
-            model.add(expr1 <= expr2)
+            task_var1 = self._task_vars[idx1]
+            task_var2 = self._task_vars[idx2]
+            both_present = [task_var1.present, task_var2.present]
+            expr = task_var1.start + delay <= task_var2.start
+            model.add(expr).only_enforce_if(both_present)
 
         for idx1, idx2, delay in data.constraints.start_before_end:
-            expr1 = self._task_vars[idx1].start + delay
-            expr2 = self._task_vars[idx2].end
-            model.add(expr1 <= expr2)
+            task_var1 = self._task_vars[idx1]
+            task_var2 = self._task_vars[idx2]
+            both_present = [task_var1.present, task_var2.present]
+            expr = task_var1.start + delay <= task_var2.end
+            model.add(expr).only_enforce_if(both_present)
 
         for idx1, idx2, delay in data.constraints.end_before_start:
-            expr1 = self._task_vars[idx1].end + delay
-            expr2 = self._task_vars[idx2].start
-            model.add(expr1 <= expr2)
+            task_var1 = self._task_vars[idx1]
+            task_var2 = self._task_vars[idx2]
+            both_present = [task_var1.present, task_var2.present]
+            expr = task_var1.end + delay <= task_var2.start
+            model.add(expr).only_enforce_if(both_present)
 
         for idx1, idx2, delay in data.constraints.end_before_end:
-            expr1 = self._task_vars[idx1].end + delay
-            expr2 = self._task_vars[idx2].end
-            model.add(expr1 <= expr2)
+            task_var1 = self._task_vars[idx1]
+            task_var2 = self._task_vars[idx2]
+            both_present = [task_var1.present, task_var2.present]
+            expr = task_var1.end + delay <= task_var2.end
+            model.add(expr).only_enforce_if(both_present)
 
     def _identical_and_different_resource_constraints(self):
         """
@@ -159,6 +191,17 @@ class Constraints:
                 expr1 = self._mode_vars[mode1].present
                 expr2 = sum(self._mode_vars[mode2].present for mode2 in modes2)
                 model.add(expr1 <= expr2)
+
+    def _if_then_constraints(self):
+        """
+        Creates the if-then constraints.
+        """
+        model, data = self._model, self._data
+
+        for idx1, idcs2 in data.constraints.if_then:
+            pred = self._task_vars[idx1].present
+            succs = sum(self._task_vars[idx2].present for idx2 in idcs2)
+            model.add(pred <= succs)
 
     def _activate_setup_times(self):
         """
@@ -257,6 +300,7 @@ class Constraints:
         self._non_renewable_capacity()
         self._timing_constraints()
         self._identical_and_different_resource_constraints()
+        self._if_then_constraints()
         self._activate_setup_times()
         self._consecutive_constraints()
 
