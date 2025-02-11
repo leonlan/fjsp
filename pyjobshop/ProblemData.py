@@ -627,20 +627,47 @@ class Constraints:
 @dataclass
 class Objective:
     """
-    Represents a weighted sum of the following objective functions:
+    The objective class represents a weighted sum of objective functions :math:`f`, calculated as:
+    :math:`\\sum_f \\text{weight}_f \\cdot \\text{value}_f`. The objective functions :math:`f` are defined below.
 
-    * Makespan
-    * Number of tardy jobs
-    * Total flow time
-    * Total tardiness
-    * Total earliness
-    * Maximum tardiness
-    * Maximum lateness
+    In the following, let :math:`J` denote the set of jobs, :math:`T` denote the set of tasks,
+    :math:`C_j` denote the completion time of job :math:`j`, and :math:`C_t` denote the completion time of
+    task :math:`t`.
+
+    **Makespan** (:math:`C_{\\max}`): The finish time of the latest task.
+        .. math::
+            C_{\\max} = \\max_{t \\in T} C_t
+
+    **Number of tardy jobs** (:math:`NTJ`): The weighted sum of all tardy jobs, where a job is tardy when it does not meet its due date :math:`d_j`.
+        .. math::
+            NTJ = \\sum_{j \\in J} w_j \\mathbb{1}_{\\{C_j - d_j > 0\\}}
+
+    where :math:`\\mathbb{1}_{\\{x\\}}` is the indicator function.
+
+    **Total flow time** (:math:`TFT`): The weighted sum of the length of stay in the system of each job, from their release date to their completion.
+        .. math::
+            TFT = \\sum_{j \\in J} w_j ( C_j - r_j )
+
+    **Total tardiness** (:math:`TT`): The weighted sum of the tardiness of each job, where the tardiness is the difference between completion time and due date :math:`d_j` (0 if completed before due date).
+        .. math::
+            TT = \\sum_{j \\in J} w_j U_j
+
+    **Total earliness** (:math:`TE`): The weighted sum of the earliness of each job, where earliness is the difference between due date :math:`d_j` and completion time (0 if completed after due date).
+        .. math::
+            TE = \\sum_{j \\in J} w_j (\\max(d_j - C_j, 0))
+
+    **Maximum tardiness** (:math:`U_{\\max}`): The weighted maximum tardiness of all jobs.
+        .. math::
+            U_{\\max} = \\max_{j \\in J} w_j (\\max(C_j - d_j, 0))
+
+    **Maximum lateness** (:math:`L_{\\max}`): The weighted maximum lateness of all jobs. Lateness can be negative, unlike tardiness.
+        .. math::
+            L_{\\max} = \\max_{j \\in J} w_j (C_j - d_j)
 
     .. note::
-        Use :attr:`Job.weight` to set a specific job's weight in the
+        Use :attr:`Job.weight` to set a specific job's weight (:math:`w_j`) in the
         objective function.
-    """
+    """  # noqa: E501
 
     weight_makespan: int = 0
     weight_tardy_jobs: int = 0
